@@ -19,7 +19,7 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar player-service.jar
 
 # Porta esposta (Render usa di solito 8080 o PORT)
-EXPOSE 8080
+EXPOSE 7072
 
 # Comando di esecuzione
 ENTRYPOINT ["java", "-jar", "player-service.jar"]
