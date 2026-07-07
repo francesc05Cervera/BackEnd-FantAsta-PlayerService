@@ -16,19 +16,12 @@ public class Player {
     @Column(nullable = false, length = 100)
     private String surname;
 
-    @Column(nullable = false, length = 100)
-    private String role; //A, D, C, P 
+    @Column(nullable = false, length = 50)
+    private String role; // ATTACCANTE, DIFENSORE, CENTROCAMPISTA, PORTIERE
 
-    @Column(nullable = false, length = 100)
-    private String team; //inter x esempio
+    @Column(length = 100)
+    private String team; // squadra reale
 
-    public Player() {
-    }
-    public Player(Integer id, String name, String surname) {
-        this.id = id;
-        this.name = name;
-        this.surname = surname;
-    }
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
 
@@ -37,4 +30,10 @@ public class Player {
 
     public String getSurname() { return surname; }
     public void setSurname(String surname) { this.surname = surname; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
+    public String getTeam() { return team; }
+    public void setTeam(String team) { this.team = team; }
 }

@@ -6,18 +6,7 @@ public class PlayerRequest {
     private String surname;
     private String role;
     private String team;
-    
-    public PlayerRequest() {
-    }
 
-    public PlayerRequest(String name, String surname, String role, String team) {
-        this.name = name;
-        this.surname = surname;
-        this.role = role;
-        this.team = team;
-    }
-    
-    
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 

@@ -1,23 +1,12 @@
 package com.example.fantasta.player_service.DTO;
 
-public class PlayerResponse 
-{
+public class PlayerResponse {
+
     private Integer id;
     private String name;
     private String surname;
     private String role;
     private String team;
-
-    public PlayerResponse() {
-    }
-
-    public PlayerResponse(Integer id, String name, String surname, String role, String team) {
-        this.id = id;
-        this.name = name;
-        this.surname = surname;
-        this.role = role;
-        this.team = team;
-    }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -33,5 +22,4 @@ public class PlayerResponse
 
     public String getTeam() { return team; }
     public void setTeam(String team) { this.team = team; }
-    
 }
