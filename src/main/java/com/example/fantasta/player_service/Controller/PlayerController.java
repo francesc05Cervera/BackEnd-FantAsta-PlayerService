@@ -35,7 +35,7 @@ public class PlayerController {
             return ResponseEntity.ok(player);
         } catch (TokenException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (DuplicatePlayerException e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }

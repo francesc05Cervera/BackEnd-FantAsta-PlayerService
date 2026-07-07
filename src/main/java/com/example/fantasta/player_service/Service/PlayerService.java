@@ -44,9 +44,9 @@ public class PlayerService {
         return response;
     }
 
-    // 1. Creazione giocatore (globale)
+    // 1. Creazione giocatore (globale) - senza controllo duplicazione
     public PlayerResponse createPlayer(String authorizationHeader, PlayerRequest request)
-            throws TokenException, DuplicatePlayerException {
+            throws TokenException {
 
         validateToken(authorizationHeader);
 
@@ -55,11 +55,6 @@ public class PlayerService {
         player.setSurname(request.getSurname());
         player.setRole(request.getRole());
         player.setTeam(request.getTeam());
-
-        List<Player> existing = playerRepository.findBySurname(player.getSurname());
-        if (!existing.isEmpty()) {
-            throw new DuplicatePlayerException("Giocatore con cognome " + player.getSurname() + " già esistente");
-        }
 
         player = playerRepository.save(player);
         return toResponse(player);
