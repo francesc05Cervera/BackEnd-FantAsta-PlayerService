@@ -1,25 +1,20 @@
-# 1. Build stage: JDK 17
-FROM eclipse-temurin:17-jdk AS build
+# Build stage con Maven e JDK 17
+FROM maven:3.9.8-eclipse-temurin-17 AS build
 
 WORKDIR /app
 
-# Copia solo file necessari
 COPY pom.xml .
 COPY src ./src
 
-# Build con Maven, skip test
 RUN mvn clean package -DskipTests
 
-# 2. Run stage: JRE 17 (più leggero)
+# Run stage con JRE 17
 FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-# Copia il JAR compilato dal build stage
-COPY --from=build /app/target/*.jar player-service.jar
+COPY --from=build /app/target/*.jar app.jar
 
-# Porta esposta (Render usa di solito 8080 o PORT)
 EXPOSE 7072
 
-# Comando di esecuzione
-ENTRYPOINT ["java", "-jar", "player-service.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
