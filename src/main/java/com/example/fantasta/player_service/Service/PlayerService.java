@@ -9,6 +9,7 @@ import com.example.fantasta.player_service.Client.AuthServiceClient;
 import com.example.fantasta.player_service.Exceptions.TokenException;
 import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
+import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -187,7 +188,50 @@ public class PlayerService {
         return result;
     }
 
+    public void removePlayer(String authorizationHeader, Integer playerId)
+            throws TokenException, NotFoundException {
+
+        validateToken(authorizationHeader);
+
+        Player player = playerRepository.findById(playerId)
+                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
+
+        playerRepository.delete(player);
+
+    }
+
+    public void removeAll(String authorizationHeader) throws TokenException {
+        validateToken(authorizationHeader);
+        playerRepository.deleteAll();
+    }
     public void validateTokenPublic(String authorizationHeader) throws TokenException {
         validateToken(authorizationHeader);
     }
+
+    public PlayerResponse updatePlayerInfo(String authorizationHeader, Integer playerId, ChangeInfoPlayerRequest request)
+            throws TokenException, NotFoundException {
+
+        validateToken(authorizationHeader);
+
+        Player player = playerRepository.findById(playerId)
+                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            player.setName(request.getName());
+        }
+        if (request.getSurname() != null && !request.getSurname().isBlank()) {
+            player.setSurname(request.getSurname());
+        }
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            player.setRole(request.getRole());
+        }
+        if (request.getTeam() != null && !request.getTeam().isBlank()) {
+            player.setTeam(request.getTeam());
+        }
+
+        playerRepository.save(player);
+
+        return toResponse(player);
+    }
+
 }

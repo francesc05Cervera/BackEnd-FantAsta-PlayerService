@@ -6,6 +6,7 @@ import com.example.fantasta.player_service.Service.PlayerService;
 import com.example.fantasta.player_service.Exceptions.TokenException;
 import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
+import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -146,6 +147,44 @@ public class PlayerController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Errore nell'import: " + e.getMessage());
+        }
+    }
+
+    // 9. DELETE /api/players/{id}
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deletePlayer(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id) {
+        try {
+            playerService.removePlayer(authorizationHeader, id);
+            return ResponseEntity.ok("Giocatore eliminato con successo.");
+        } catch (TokenException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/all")
+    public ResponseEntity<?> deleteAllPlayers(@RequestHeader("Authorization") String authorizationHeader) 
+    {
+        try {
+            playerService.removeAll(authorizationHeader);
+            return ResponseEntity.ok("Tutti i giocatori eliminati con successo.");
+        } catch (TokenException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}/all-info")
+    public ResponseEntity<?> updatePlayerInfo(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id, @RequestBody ChangeInfoPlayerRequest request) {
+        try {
+            PlayerResponse player = playerService.updatePlayerInfo(authorizationHeader, id, request);
+            return ResponseEntity.ok(player);
+        } catch (TokenException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }
