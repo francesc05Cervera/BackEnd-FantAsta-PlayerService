@@ -1,198 +1,32 @@
 package com.example.fantasta.player_service.Controller;
 
-import com.example.fantasta.player_service.DTO.PlayerRequest;
-import com.example.fantasta.player_service.DTO.PlayerResponse;
-import com.example.fantasta.player_service.Service.PlayerService;
-import com.example.fantasta.player_service.Exceptions.TokenException;
-import com.example.fantasta.player_service.Exceptions.NotFoundException;
-import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
-import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
-
-import org.springframework.http.HttpStatus;
+import java.util.List;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import jakarta.validation.Valid;
-
-import java.util.List;
+import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
+import com.example.fantasta.player_service.DTO.PlayerRequest;
+import com.example.fantasta.player_service.DTO.PlayerResponse;
+import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
+import com.example.fantasta.player_service.Exceptions.NotFoundException;
+import com.example.fantasta.player_service.Exceptions.TokenException;
+import com.example.fantasta.player_service.Service.PlayerService;
 
 @RestController
 @RequestMapping("/api/players")
 public class PlayerController {
-
     private final PlayerService playerService;
-
-    public PlayerController(PlayerService playerService) {
-        this.playerService = playerService;
-    }
-
-    // 1. POST /api/players
-    @PostMapping
-    public ResponseEntity<?> createPlayer(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @Valid @RequestBody PlayerRequest request) {
-
-        try {
-            PlayerResponse player = playerService.createPlayer(authorizationHeader, request);
-            return ResponseEntity.ok(player);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
-    }
-
-    // 2. GET /api/players
-    @GetMapping
-    public ResponseEntity<?> listPlayers(
-            @RequestHeader("Authorization") String authorizationHeader) {
-
-        try {
-            List<PlayerResponse> players = playerService.listPlayers(authorizationHeader);
-            return ResponseEntity.ok(players);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        }
-    }
-
-    // 3. GET /api/players/{id}
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getPlayerById(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @PathVariable Integer id) {
-
-        try {
-            PlayerResponse player = playerService.getPlayerById(authorizationHeader, id);
-            return ResponseEntity.ok(player);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (NotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
-    }
-
-    // 4. GET /api/players/role/{role}
-    @GetMapping("/role/{role}")
-    public ResponseEntity<?> listPlayersByRole(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @PathVariable String role) {
-
-        try {
-            List<PlayerResponse> players = playerService.listPlayersByRole(authorizationHeader, role);
-            return ResponseEntity.ok(players);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        }
-    }
-
-    // 5. GET /api/players/team/{team}
-    @GetMapping("/team/{team}")
-    public ResponseEntity<?> listPlayersByTeam(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @PathVariable String team) {
-
-        try {
-            List<PlayerResponse> players = playerService.listPlayersByTeam(authorizationHeader, team);
-            return ResponseEntity.ok(players);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        }
-    }
-
-    // 6. GET /api/players/role/{role}/team/{team}
-    @GetMapping("/role/{role}/team/{team}")
-    public ResponseEntity<?> listPlayersByRoleAndTeam(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @PathVariable String role,
-            @PathVariable String team) {
-
-        try {
-            List<PlayerResponse> players = playerService.listPlayersByRoleAndTeam(authorizationHeader, role, team);
-            return ResponseEntity.ok(players);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        }
-    }
-
-    // 7. PUT /api/players/{id}/role
-    @PutMapping("/{id}/role")
-    public ResponseEntity<?> updatePlayerRole(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @PathVariable Integer id,
-            @RequestParam String newRole) {
-
-        try {
-            PlayerResponse player = playerService.updatePlayerRole(authorizationHeader, id, newRole);
-            return ResponseEntity.ok(player);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (NotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (DuplicatePlayerException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
-    }
-
-    // 8. POST /api/players/import-csv
-    @PostMapping("/import-csv")
-    public ResponseEntity<?> importPlayersFromCsv(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @RequestParam("file") MultipartFile file) {
-
-        try {
-            List<PlayerResponse> players = playerService.importPlayersFromCsv(authorizationHeader, file);
-            return ResponseEntity.ok(players);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (DuplicatePlayerException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Errore nell'import: " + e.getMessage());
-        }
-    }
-
-    // 9. DELETE /api/players/{id}
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deletePlayer(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id) {
-        try {
-            playerService.removePlayer(authorizationHeader, id);
-            return ResponseEntity.ok("Giocatore eliminato con successo.");
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (NotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
-    }
-
-    @DeleteMapping("/all")
-    public ResponseEntity<?> deleteAllPlayers(@RequestHeader("Authorization") String authorizationHeader) 
-    {
-        try {
-            playerService.removeAll(authorizationHeader);
-            return ResponseEntity.ok("Tutti i giocatori eliminati con successo.");
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        }
-    }
-
-    @PutMapping("/{id}/all-info")
-    public ResponseEntity<?> updatePlayerInfo(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id, @Valid @RequestBody ChangeInfoPlayerRequest request) {
-        try {
-            PlayerResponse player = playerService.updatePlayerInfo(authorizationHeader, id, request);
-            return ResponseEntity.ok(player);
-        } catch (TokenException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (NotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
-    }
+    public PlayerController(PlayerService playerService) { this.playerService = playerService; }
+    @PostMapping public ResponseEntity<PlayerResponse> createPlayer(@RequestHeader("Authorization") String header, @Valid @RequestBody PlayerRequest request) throws TokenException, DuplicatePlayerException { return ResponseEntity.ok(playerService.createPlayer(header, request)); }
+    @GetMapping public List<PlayerResponse> listPlayers(@RequestHeader("Authorization") String header) throws TokenException { return playerService.listPlayers(header); }
+    @GetMapping("/{id}") public PlayerResponse getPlayerById(@RequestHeader("Authorization") String header, @PathVariable Integer id) throws TokenException, NotFoundException { return playerService.getPlayerById(header, id); }
+    @GetMapping("/role/{role}") public List<PlayerResponse> listPlayersByRole(@RequestHeader("Authorization") String header, @PathVariable String role) throws TokenException { return playerService.listPlayersByRole(header, role); }
+    @GetMapping("/team/{team}") public List<PlayerResponse> listPlayersByTeam(@RequestHeader("Authorization") String header, @PathVariable String team) throws TokenException { return playerService.listPlayersByTeam(header, team); }
+    @GetMapping("/role/{role}/team/{team}") public List<PlayerResponse> listPlayersByRoleAndTeam(@RequestHeader("Authorization") String header, @PathVariable String role, @PathVariable String team) throws TokenException { return playerService.listPlayersByRoleAndTeam(header, role, team); }
+    @PutMapping("/{id}/role") public PlayerResponse updatePlayerRole(@RequestHeader("Authorization") String header, @PathVariable Integer id, @RequestParam String newRole) throws TokenException, NotFoundException, DuplicatePlayerException { return playerService.updatePlayerRole(header, id, newRole); }
+    @PostMapping("/import-csv") public List<PlayerResponse> importPlayersFromCsv(@RequestHeader("Authorization") String header, @RequestParam("file") MultipartFile file) throws TokenException, DuplicatePlayerException { return playerService.importPlayersFromCsv(header, file); }
+    @DeleteMapping("/{id}") public ResponseEntity<Void> deletePlayer(@RequestHeader("Authorization") String header, @PathVariable Integer id) throws TokenException, NotFoundException { playerService.removePlayer(header, id); return ResponseEntity.noContent().build(); }
+    @DeleteMapping("/all") public ResponseEntity<Void> deleteAllPlayers(@RequestHeader("Authorization") String header) throws TokenException { playerService.removeAll(header); return ResponseEntity.noContent().build(); }
+    @PutMapping("/{id}/all-info") public PlayerResponse updatePlayerInfo(@RequestHeader("Authorization") String header, @PathVariable Integer id, @Valid @RequestBody ChangeInfoPlayerRequest request) throws TokenException, NotFoundException, DuplicatePlayerException { return playerService.updatePlayerInfo(header, id, request); }
 }

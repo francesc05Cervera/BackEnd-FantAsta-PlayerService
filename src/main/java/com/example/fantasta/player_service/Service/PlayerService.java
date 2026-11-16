@@ -1,8 +1,9 @@
 package com.example.fantasta.player_service.Service;
 
-import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.InputStreamReader;
+import java.io.BufferedReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
 import com.example.fantasta.player_service.Exceptions.ForbiddenException;
 import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.TokenException;
+import com.example.fantasta.player_service.Exceptions.InvalidPlayerRequestException;
 import com.example.fantasta.player_service.Repository.PlayerRepository;
 
 @Service
@@ -45,9 +47,9 @@ public class PlayerService {
         }
     }
 
-    private String normalizeRole(String role) throws DuplicatePlayerException {
+    private String normalizeRole(String role) {
         String normalized = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
-        if (!ROLES.contains(normalized)) throw new DuplicatePlayerException("Role must be one of " + ROLES);
+        if (!ROLES.contains(normalized)) throw new InvalidPlayerRequestException("Role must be one of " + ROLES);
         return normalized;
     }
 
@@ -65,7 +67,7 @@ public class PlayerService {
         String surname = request.getSurname().trim();
         String role = normalizeRole(request.getRole());
         String team = normalizeOptional(request.getTeam());
-        if (playerRepository.existsByNameIgnoreCaseAndSurnameIgnoreCaseAndRoleIgnoreCaseAndTeamIgnoreCase(name, surname, role, team)) {
+        if (playerRepository.existsNormalized(name, surname, role, team, null)) {
             throw new DuplicatePlayerException("Player already exists");
         }
         Player player = new Player();
@@ -111,35 +113,46 @@ public class PlayerService {
     @Transactional(rollbackFor = Exception.class)
     public List<PlayerResponse> importPlayersFromCsv(String authorizationHeader, MultipartFile file) throws TokenException, DuplicatePlayerException {
         requireAdmin(authorizationHeader);
-        if (file == null || file.isEmpty()) throw new DuplicatePlayerException("CSV file is empty");
+        if (file == null || file.isEmpty()) throw new InvalidPlayerRequestException("CSV file is empty");
         List<PlayerResponse> players = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            String line; int row = 0;
-            while ((line = reader.readLine()) != null) {
-                row++; if (row == 1 && line.toLowerCase(Locale.ROOT).contains("name")) continue; if (line.isBlank()) continue;
-                List<String> columns = parseCsv(line, row);
-                if (columns.size() < 3 || columns.size() > 4) throw new DuplicatePlayerException("Invalid CSV row " + row + ": expected 3 or 4 columns");
+        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            List<List<String>> rows = parseCsv(reader);
+            for (int row = 0; row < rows.size(); row++) {
+                List<String> columns = rows.get(row);
+                int rowNumber = row + 1;
+                if (row == 0 && !columns.isEmpty() && "name".equalsIgnoreCase(columns.get(0).trim())) continue;
+                if (columns.stream().allMatch(String::isBlank)) continue;
+                if (columns.size() < 3 || columns.size() > 4) throw new InvalidPlayerRequestException("Invalid CSV row " + rowNumber + ": expected 3 or 4 columns");
                 PlayerRequest request = new PlayerRequest();
                 request.setName(columns.get(0)); request.setSurname(columns.get(1)); request.setRole(columns.get(2));
                 request.setTeam(columns.size() == 4 ? columns.get(3) : null);
                 players.add(toResponse(saveNew(request)));
             }
-        } catch (IOException exception) { throw new DuplicatePlayerException("Unable to read CSV file"); }
+        } catch (IOException exception) { throw new InvalidPlayerRequestException("Unable to read CSV file"); }
         return players;
     }
 
-    private List<String> parseCsv(String line, int row) throws DuplicatePlayerException {
-        List<String> result = new ArrayList<>(); StringBuilder value = new StringBuilder(); boolean quoted = false;
-        for (int index = 0; index < line.length(); index++) {
-            char current = line.charAt(index);
+    private List<List<String>> parseCsv(Reader reader) throws IOException {
+        List<List<String>> rows = new ArrayList<>();
+        List<String> row = new ArrayList<>(); StringBuilder field = new StringBuilder();
+        boolean quoted = false; int next;
+        while ((next = reader.read()) != -1) {
+            char current = (char) next;
             if (current == '"') {
-                if (quoted && index + 1 < line.length() && line.charAt(index + 1) == '"') { value.append('"'); index++; }
-                else quoted = !quoted;
-            } else if (current == ',' && !quoted) { result.add(value.toString().trim()); value.setLength(0); }
-            else value.append(current);
+                if (quoted) {
+                    reader.mark(1); int escaped = reader.read();
+                    if (escaped == '"') field.append('"'); else { quoted = false; if (escaped != -1) reader.reset(); }
+                } else if (field.length() == 0) quoted = true;
+                else throw new InvalidPlayerRequestException("Invalid CSV: quote in unquoted field");
+            } else if (current == ',' && !quoted) { row.add(field.toString().trim()); field.setLength(0); }
+            else if ((current == '\n' || current == '\r') && !quoted) {
+                if (current == '\r') { reader.mark(1); int lf = reader.read(); if (lf != '\n' && lf != -1) reader.reset(); }
+                row.add(field.toString().trim()); field.setLength(0); rows.add(row); row = new ArrayList<>();
+            } else field.append(current);
         }
-        if (quoted) throw new DuplicatePlayerException("Invalid CSV row " + row + ": unclosed quote");
-        result.add(value.toString().trim()); return result;
+        if (quoted) throw new InvalidPlayerRequestException("Invalid CSV: unclosed quote");
+        if (field.length() > 0 || !row.isEmpty()) { row.add(field.toString().trim()); rows.add(row); }
+        return rows;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -155,6 +168,9 @@ public class PlayerService {
         if (request.getSurname() != null && !request.getSurname().isBlank()) player.setSurname(request.getSurname().trim());
         if (request.getRole() != null && !request.getRole().isBlank()) player.setRole(normalizeRole(request.getRole()));
         if (request.getTeam() != null) player.setTeam(normalizeOptional(request.getTeam()));
+        if (playerRepository.existsNormalized(player.getName(), player.getSurname(), player.getRole(), player.getTeam(), player.getId())) {
+            throw new DuplicatePlayerException("Player already exists");
+        }
         return toResponse(playerRepository.save(player));
     }
 
