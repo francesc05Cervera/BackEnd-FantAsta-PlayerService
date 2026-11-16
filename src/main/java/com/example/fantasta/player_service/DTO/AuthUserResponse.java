@@ -7,6 +7,7 @@ public class AuthUserResponse {
     private String email;
     private String name;
     private String surname;
+    private String role;
 
     public AuthUserResponse() {
     }
@@ -49,4 +50,7 @@ public class AuthUserResponse {
     public void setSurname(String surname) {
         this.surname = surname;
     }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

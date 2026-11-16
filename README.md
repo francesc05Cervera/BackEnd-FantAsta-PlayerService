@@ -130,6 +130,8 @@ Configura gli URL degli altri servizi FantAsta se necessario:
 fantasta.auction-service.url=http://localhost:8081
 ```
 
+Per l'integrazione reale configura `AUTH_SERVICE_URL` con l'URL pubblico di AuthService e `APP_CORS_ALLOWEDORIGINS` con le origini Angular, per esempio `http://localhost:4200,https://app.example.com`. Le operazioni di creazione, modifica, importazione ed eliminazione richiedono un utente con ruolo `ADMIN`, assegnato solo da `AUTH_ADMINEMAILS` in AuthService. Gli endpoint di lettura richiedono un token Bearer valido.
+
 ## 🚀 Esecuzione
 
 ### Sviluppo Locale

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class PlayerController {
     @PostMapping
     public ResponseEntity<?> createPlayer(
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestBody PlayerRequest request) {
+            @Valid @RequestBody PlayerRequest request) {
 
         try {
             PlayerResponse player = playerService.createPlayer(authorizationHeader, request);
@@ -180,7 +181,7 @@ public class PlayerController {
     }
 
     @PutMapping("/{id}/all-info")
-    public ResponseEntity<?> updatePlayerInfo(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id, @RequestBody ChangeInfoPlayerRequest request) {
+    public ResponseEntity<?> updatePlayerInfo(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Integer id, @Valid @RequestBody ChangeInfoPlayerRequest request) {
         try {
             PlayerResponse player = playerService.updatePlayerInfo(authorizationHeader, id, request);
             return ResponseEntity.ok(player);
