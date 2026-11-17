@@ -1,10 +1,12 @@
 package com.example.fantasta.player_service.DTO;
 
+import jakarta.validation.constraints.Size;
+
 public class ChangeInfoPlayerRequest {
-    private String name;
-    private String surname;
-    private String role;
-    private String team;
+    @Size(max = 100) private String name;
+    @Size(max = 100) private String surname;
+    @Size(max = 50) private String role;
+    @Size(max = 100) private String team;
 
     public ChangeInfoPlayerRequest() {
     }

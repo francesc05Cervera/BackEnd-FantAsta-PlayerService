@@ -22,6 +22,10 @@ public class Player {
     @Column(length = 100)
     private String team; // squadra reale
 
+    /** Stable API-Football identifier. Null is retained for legacy/CSV players. */
+    @Column(name = "api_football_player_id", unique = true)
+    private Long externalPlayerId;
+
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
 
@@ -36,4 +40,7 @@ public class Player {
 
     public String getTeam() { return team; }
     public void setTeam(String team) { this.team = team; }
+
+    public Long getExternalPlayerId() { return externalPlayerId; }
+    public void setExternalPlayerId(Long externalPlayerId) { this.externalPlayerId = externalPlayerId; }
 }

@@ -1,237 +1,197 @@
 package com.example.fantasta.player_service.Service;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.example.fantasta.player_service.Client.AuthServiceClient;
 import com.example.fantasta.player_service.DTO.AuthUserResponse;
+import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
 import com.example.fantasta.player_service.DTO.PlayerRequest;
 import com.example.fantasta.player_service.DTO.PlayerResponse;
 import com.example.fantasta.player_service.Entity.Player;
-import com.example.fantasta.player_service.Repository.PlayerRepository;
-import com.example.fantasta.player_service.Client.AuthServiceClient;
-import com.example.fantasta.player_service.Exceptions.TokenException;
-import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
-import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
-
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.example.fantasta.player_service.Exceptions.ForbiddenException;
+import com.example.fantasta.player_service.Exceptions.NotFoundException;
+import com.example.fantasta.player_service.Exceptions.TokenException;
+import com.example.fantasta.player_service.Exceptions.InvalidPlayerRequestException;
+import com.example.fantasta.player_service.Repository.PlayerRepository;
+import com.example.fantasta.player_service.Integration.PlayerSynchronizationService;
+import com.example.fantasta.player_service.DTO.PlayerSyncResponse;
 
 @Service
 public class PlayerService {
-
+    private static final List<String> ROLES = List.of("P", "D", "C", "A");
     private final PlayerRepository playerRepository;
     private final AuthServiceClient authServiceClient;
+    private final PlayerSynchronizationService playerSynchronizationService;
 
-    public PlayerService(PlayerRepository playerRepository,
-                         AuthServiceClient authServiceClient) {
+    public PlayerService(PlayerRepository playerRepository, AuthServiceClient authServiceClient,
+            PlayerSynchronizationService playerSynchronizationService) {
         this.playerRepository = playerRepository;
         this.authServiceClient = authServiceClient;
+        this.playerSynchronizationService = playerSynchronizationService;
     }
 
-    private AuthUserResponse validateToken(String authorizationHeader) throws TokenException {
+    private AuthUserResponse authenticate(String authorizationHeader) throws TokenException {
         return authServiceClient.getAuthenticatedUser(authorizationHeader);
     }
 
+    private void requireAdmin(String authorizationHeader) throws TokenException {
+        if (!"ADMIN".equals(authenticate(authorizationHeader).getRole())) {
+            throw new ForbiddenException("This operation requires an administrator role.");
+        }
+    }
+
+    private String normalizeRole(String role) {
+        String normalized = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        normalized = switch (normalized) {
+            case "PORTIERE", "GOALKEEPER" -> "P";
+            case "DIFENSORE", "DEFENDER" -> "D";
+            case "CENTROCAMPISTA", "MIDFIELDER" -> "C";
+            case "ATTACCANTE", "ATTACKER" -> "A";
+            default -> normalized;
+        };
+        if (!ROLES.contains(normalized)) throw new InvalidPlayerRequestException("Role must be one of " + ROLES);
+        return normalized;
+    }
+
+    private String normalizeOptional(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+
     private PlayerResponse toResponse(Player player) {
         PlayerResponse response = new PlayerResponse();
-        response.setId(player.getId());
-        response.setName(player.getName());
-        response.setSurname(player.getSurname());
-        response.setRole(player.getRole());
-        response.setTeam(player.getTeam());
+        response.setId(player.getId()); response.setName(player.getName()); response.setSurname(player.getSurname());
+        response.setRole(player.getRole()); response.setTeam(player.getTeam());
         return response;
     }
 
-    // 1. Creazione giocatore (globale) - senza controllo duplicazione
-    public PlayerResponse createPlayer(String authorizationHeader, PlayerRequest request)
-            throws TokenException {
-
-        validateToken(authorizationHeader);
-
+    private Player saveNew(PlayerRequest request) throws DuplicatePlayerException {
+        String name = request.getName().trim();
+        String surname = request.getSurname().trim();
+        String role = normalizeRole(request.getRole());
+        String team = normalizeOptional(request.getTeam());
+        if (playerRepository.existsNormalized(name, surname, role, team, null)) {
+            throw new DuplicatePlayerException("Player already exists");
+        }
         Player player = new Player();
-        player.setName(request.getName());
-        player.setSurname(request.getSurname());
-        player.setRole(request.getRole());
-        player.setTeam(request.getTeam());
-
-        player = playerRepository.save(player);
-        return toResponse(player);
+        player.setName(name); player.setSurname(surname); player.setRole(role); player.setTeam(team);
+        return playerRepository.save(player);
     }
 
-    // 2. Lista tutti i giocatori
+    @Transactional(rollbackFor = Exception.class)
+    public PlayerResponse createPlayer(String authorizationHeader, PlayerRequest request) throws TokenException, DuplicatePlayerException {
+        requireAdmin(authorizationHeader);
+        return toResponse(saveNew(request));
+    }
+
     public List<PlayerResponse> listPlayers(String authorizationHeader) throws TokenException {
-        validateToken(authorizationHeader);
-
-        List<Player> players = playerRepository.findAll();
-        return players.stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        authenticate(authorizationHeader);
+        return playerRepository.findAll().stream().map(this::toResponse).toList();
     }
 
-    // 3. Dettaglio giocatore
-    public PlayerResponse getPlayerById(String authorizationHeader, Integer playerId)
-            throws TokenException, NotFoundException {
-
-        validateToken(authorizationHeader);
-
-        Player player = playerRepository.findById(playerId)
-                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
-
-        return toResponse(player);
+    public PlayerResponse getPlayerById(String authorizationHeader, Integer playerId) throws TokenException, NotFoundException {
+        authenticate(authorizationHeader); return toResponse(findPlayer(playerId));
     }
 
-    // 4. Filtra per ruolo
-    public List<PlayerResponse> listPlayersByRole(String authorizationHeader, String role)
-            throws TokenException {
-
-        validateToken(authorizationHeader);
-
-        List<Player> players = playerRepository.findByRole(role);
-        return players.stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public List<PlayerResponse> listPlayersByRole(String authorizationHeader, String role) throws TokenException {
+        authenticate(authorizationHeader);
+        return playerRepository.findByRole(role.trim().toUpperCase(Locale.ROOT)).stream().map(this::toResponse).toList();
     }
 
-    // 5. Filtra per team
-    public List<PlayerResponse> listPlayersByTeam(String authorizationHeader, String team)
-            throws TokenException {
-
-        validateToken(authorizationHeader);
-
-        List<Player> players = playerRepository.findByTeam(team);
-        return players.stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public List<PlayerResponse> listPlayersByTeam(String authorizationHeader, String team) throws TokenException {
+        authenticate(authorizationHeader); return playerRepository.findByTeam(team.trim()).stream().map(this::toResponse).toList();
     }
 
-    // 6. Filtra per ruolo + team
-    public List<PlayerResponse> listPlayersByRoleAndTeam(String authorizationHeader, String role, String team)
-            throws TokenException {
-
-        validateToken(authorizationHeader);
-
-        List<Player> players = playerRepository.findByRoleAndTeam(role, team);
-        return players.stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public List<PlayerResponse> listPlayersByRoleAndTeam(String authorizationHeader, String role, String team) throws TokenException {
+        authenticate(authorizationHeader);
+        return playerRepository.findByRoleAndTeam(role.trim().toUpperCase(Locale.ROOT), team.trim()).stream().map(this::toResponse).toList();
     }
 
-    // 7. Cambio ruolo giocatore (globale)
-    public PlayerResponse updatePlayerRole(String authorizationHeader, Integer playerId, String newRole)
-            throws TokenException, NotFoundException, DuplicatePlayerException {
-
-        validateToken(authorizationHeader);
-
-        Player player = playerRepository.findById(playerId)
-                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
-
-        if (newRole == null || newRole.isBlank()) {
-            throw new DuplicatePlayerException("Ruolo non valido");
-        }
-
-        player.setRole(newRole);
-        playerRepository.save(player);
-
-        return toResponse(player);
+    @Transactional(rollbackFor = Exception.class)
+    public PlayerResponse updatePlayerRole(String authorizationHeader, Integer playerId, String newRole) throws TokenException, NotFoundException, DuplicatePlayerException {
+        requireAdmin(authorizationHeader); Player player = findPlayer(playerId); player.setRole(normalizeRole(newRole));
+        return toResponse(playerRepository.save(player));
     }
 
-    // 8. Import da CSV
-    public List<PlayerResponse> importPlayersFromCsv(String authorizationHeader, MultipartFile file)
-            throws TokenException, DuplicatePlayerException {
-
-        validateToken(authorizationHeader);
-
-        if (file.isEmpty()) {
-            throw new DuplicatePlayerException("File CSV vuoto");
-        }
-
-        List<PlayerResponse> result = new ArrayList<>();
-
-        try (InputStream is = file.getInputStream();
-             BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-
-            String line;
-            boolean firstLine = true;
-
-            while ((line = br.readLine()) != null) {
-                if (firstLine) {
-                    firstLine = false;
-                    continue;
-                }
-
-                String[] parts = line.split(",");
-                if (parts.length < 3) {
-                    continue;
-                }
-
-                String name = parts[0].trim();
-                String surname = parts[1].trim();
-                String role = parts[2].trim();
-                String team = parts.length >= 4 ? parts[3].trim() : null;
-
+    @Transactional(rollbackFor = Exception.class)
+    public List<PlayerResponse> importPlayersFromCsv(String authorizationHeader, MultipartFile file) throws TokenException, DuplicatePlayerException {
+        requireAdmin(authorizationHeader);
+        if (file == null || file.isEmpty()) throw new InvalidPlayerRequestException("CSV file is empty");
+        List<PlayerResponse> players = new ArrayList<>();
+        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            List<List<String>> rows = parseCsv(reader);
+            for (int row = 0; row < rows.size(); row++) {
+                List<String> columns = rows.get(row);
+                int rowNumber = row + 1;
+                if (row == 0 && !columns.isEmpty() && "name".equalsIgnoreCase(columns.get(0).trim())) continue;
+                if (columns.stream().allMatch(String::isBlank)) continue;
+                if (columns.size() < 3 || columns.size() > 4) throw new InvalidPlayerRequestException("Invalid CSV row " + rowNumber + ": expected 3 or 4 columns");
                 PlayerRequest request = new PlayerRequest();
-                request.setName(name);
-                request.setSurname(surname);
-                request.setRole(role);
-                request.setTeam(team);
-
-                PlayerResponse player = createPlayer(authorizationHeader, request);
-                result.add(player);
+                request.setName(columns.get(0)); request.setSurname(columns.get(1)); request.setRole(columns.get(2));
+                request.setTeam(columns.size() == 4 ? columns.get(3) : null);
+                players.add(toResponse(saveNew(request)));
             }
-        } catch (IOException e) {
-            throw new DuplicatePlayerException("Errore lettura file CSV: " + e.getMessage());
-        }
-
-        return result;
+        } catch (IOException exception) { throw new InvalidPlayerRequestException("Unable to read CSV file"); }
+        return players;
     }
 
-    public void removePlayer(String authorizationHeader, Integer playerId)
-            throws TokenException, NotFoundException {
-
-        validateToken(authorizationHeader);
-
-        Player player = playerRepository.findById(playerId)
-                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
-
-        playerRepository.delete(player);
-
+    private List<List<String>> parseCsv(Reader reader) throws IOException {
+        List<List<String>> rows = new ArrayList<>();
+        List<String> row = new ArrayList<>(); StringBuilder field = new StringBuilder();
+        boolean quoted = false; int next;
+        while ((next = reader.read()) != -1) {
+            char current = (char) next;
+            if (current == '"') {
+                if (quoted) {
+                    reader.mark(1); int escaped = reader.read();
+                    if (escaped == '"') field.append('"'); else { quoted = false; if (escaped != -1) reader.reset(); }
+                } else if (field.length() == 0) quoted = true;
+                else throw new InvalidPlayerRequestException("Invalid CSV: quote in unquoted field");
+            } else if (current == ',' && !quoted) { row.add(field.toString().trim()); field.setLength(0); }
+            else if ((current == '\n' || current == '\r') && !quoted) {
+                if (current == '\r') { reader.mark(1); int lf = reader.read(); if (lf != '\n' && lf != -1) reader.reset(); }
+                row.add(field.toString().trim()); field.setLength(0); rows.add(row); row = new ArrayList<>();
+            } else field.append(current);
+        }
+        if (quoted) throw new InvalidPlayerRequestException("Invalid CSV: unclosed quote");
+        if (field.length() > 0 || !row.isEmpty()) { row.add(field.toString().trim()); rows.add(row); }
+        return rows;
     }
 
-    public void removeAll(String authorizationHeader) throws TokenException {
-        validateToken(authorizationHeader);
-        playerRepository.deleteAll();
-    }
-    public void validateTokenPublic(String authorizationHeader) throws TokenException {
-        validateToken(authorizationHeader);
-    }
+    @Transactional(rollbackFor = Exception.class)
+    public void removePlayer(String authorizationHeader, Integer playerId) throws TokenException, NotFoundException { requireAdmin(authorizationHeader); playerRepository.delete(findPlayer(playerId)); }
 
-    public PlayerResponse updatePlayerInfo(String authorizationHeader, Integer playerId, ChangeInfoPlayerRequest request)
-            throws TokenException, NotFoundException {
+    @Transactional(rollbackFor = Exception.class)
+    public void removeAll(String authorizationHeader) throws TokenException { requireAdmin(authorizationHeader); playerRepository.deleteAll(); }
 
-        validateToken(authorizationHeader);
-
-        Player player = playerRepository.findById(playerId)
-                .orElseThrow(() -> new NotFoundException("Giocatore con ID " + playerId + " non trovato"));
-
-        if (request.getName() != null && !request.getName().isBlank()) {
-            player.setName(request.getName());
+    @Transactional(rollbackFor = Exception.class)
+    public PlayerResponse updatePlayerInfo(String authorizationHeader, Integer playerId, ChangeInfoPlayerRequest request) throws TokenException, NotFoundException, DuplicatePlayerException {
+        requireAdmin(authorizationHeader); Player player = findPlayer(playerId);
+        if (request.getName() != null && !request.getName().isBlank()) player.setName(request.getName().trim());
+        if (request.getSurname() != null && !request.getSurname().isBlank()) player.setSurname(request.getSurname().trim());
+        if (request.getRole() != null && !request.getRole().isBlank()) player.setRole(normalizeRole(request.getRole()));
+        if (request.getTeam() != null) player.setTeam(normalizeOptional(request.getTeam()));
+        if (playerRepository.existsNormalized(player.getName(), player.getSurname(), player.getRole(), player.getTeam(), player.getId())) {
+            throw new DuplicatePlayerException("Player already exists");
         }
-        if (request.getSurname() != null && !request.getSurname().isBlank()) {
-            player.setSurname(request.getSurname());
-        }
-        if (request.getRole() != null && !request.getRole().isBlank()) {
-            player.setRole(request.getRole());
-        }
-        if (request.getTeam() != null && !request.getTeam().isBlank()) {
-            player.setTeam(request.getTeam());
-        }
-
-        playerRepository.save(player);
-
-        return toResponse(player);
+        return toResponse(playerRepository.save(player));
     }
 
+    public PlayerSyncResponse synchronizeFromApiFootball(String authorizationHeader) throws TokenException {
+        requireAdmin(authorizationHeader);
+        return playerSynchronizationService.synchronize();
+    }
+
+    private Player findPlayer(Integer playerId) throws NotFoundException {
+        return playerRepository.findById(playerId).orElseThrow(() -> new NotFoundException("Player not found"));
+    }
 }

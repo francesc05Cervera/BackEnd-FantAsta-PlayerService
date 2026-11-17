@@ -1,10 +1,17 @@
 package com.example.fantasta.player_service.DTO;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 public class PlayerRequest {
 
+    @NotBlank @Size(max = 100)
     private String name;
+    @NotBlank @Size(max = 100)
     private String surname;
+    @NotBlank @Size(max = 50)
     private String role;
+    @Size(max = 100)
     private String team;
 
     public String getName() { return name; }
