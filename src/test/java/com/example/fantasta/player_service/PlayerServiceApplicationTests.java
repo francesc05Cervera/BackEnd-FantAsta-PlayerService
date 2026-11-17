@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.datasource.username=${TEST_DB_USERNAME:sa}",
         "spring.datasource.password=${TEST_DB_PASSWORD:}",
         "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.flyway.enabled=false",
         "auth.service.url=http://localhost:7070"
 })
 class PlayerServiceApplicationTests {

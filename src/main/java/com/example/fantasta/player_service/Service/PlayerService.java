@@ -25,16 +25,21 @@ import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.TokenException;
 import com.example.fantasta.player_service.Exceptions.InvalidPlayerRequestException;
 import com.example.fantasta.player_service.Repository.PlayerRepository;
+import com.example.fantasta.player_service.Integration.PlayerSynchronizationService;
+import com.example.fantasta.player_service.DTO.PlayerSyncResponse;
 
 @Service
 public class PlayerService {
-    private static final List<String> ROLES = List.of("PORTIERE", "DIFENSORE", "CENTROCAMPISTA", "ATTACCANTE");
+    private static final List<String> ROLES = List.of("P", "D", "C", "A");
     private final PlayerRepository playerRepository;
     private final AuthServiceClient authServiceClient;
+    private final PlayerSynchronizationService playerSynchronizationService;
 
-    public PlayerService(PlayerRepository playerRepository, AuthServiceClient authServiceClient) {
+    public PlayerService(PlayerRepository playerRepository, AuthServiceClient authServiceClient,
+            PlayerSynchronizationService playerSynchronizationService) {
         this.playerRepository = playerRepository;
         this.authServiceClient = authServiceClient;
+        this.playerSynchronizationService = playerSynchronizationService;
     }
 
     private AuthUserResponse authenticate(String authorizationHeader) throws TokenException {
@@ -49,6 +54,13 @@ public class PlayerService {
 
     private String normalizeRole(String role) {
         String normalized = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        normalized = switch (normalized) {
+            case "PORTIERE", "GOALKEEPER" -> "P";
+            case "DIFENSORE", "DEFENDER" -> "D";
+            case "CENTROCAMPISTA", "MIDFIELDER" -> "C";
+            case "ATTACCANTE", "ATTACKER" -> "A";
+            default -> normalized;
+        };
         if (!ROLES.contains(normalized)) throw new InvalidPlayerRequestException("Role must be one of " + ROLES);
         return normalized;
     }
@@ -172,6 +184,11 @@ public class PlayerService {
             throw new DuplicatePlayerException("Player already exists");
         }
         return toResponse(playerRepository.save(player));
+    }
+
+    public PlayerSyncResponse synchronizeFromApiFootball(String authorizationHeader) throws TokenException {
+        requireAdmin(authorizationHeader);
+        return playerSynchronizationService.synchronize();
     }
 
     private Player findPlayer(Integer playerId) throws NotFoundException {

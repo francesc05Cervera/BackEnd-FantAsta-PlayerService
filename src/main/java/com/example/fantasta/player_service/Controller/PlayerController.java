@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.fantasta.player_service.DTO.ChangeInfoPlayerRequest;
 import com.example.fantasta.player_service.DTO.PlayerRequest;
 import com.example.fantasta.player_service.DTO.PlayerResponse;
+import com.example.fantasta.player_service.DTO.PlayerSyncResponse;
 import com.example.fantasta.player_service.Exceptions.DuplicatePlayerException;
 import com.example.fantasta.player_service.Exceptions.NotFoundException;
 import com.example.fantasta.player_service.Exceptions.TokenException;
@@ -26,6 +27,7 @@ public class PlayerController {
     @GetMapping("/role/{role}/team/{team}") public List<PlayerResponse> listPlayersByRoleAndTeam(@RequestHeader("Authorization") String header, @PathVariable String role, @PathVariable String team) throws TokenException { return playerService.listPlayersByRoleAndTeam(header, role, team); }
     @PutMapping("/{id}/role") public PlayerResponse updatePlayerRole(@RequestHeader("Authorization") String header, @PathVariable Integer id, @RequestParam String newRole) throws TokenException, NotFoundException, DuplicatePlayerException { return playerService.updatePlayerRole(header, id, newRole); }
     @PostMapping("/import-csv") public List<PlayerResponse> importPlayersFromCsv(@RequestHeader("Authorization") String header, @RequestParam("file") MultipartFile file) throws TokenException, DuplicatePlayerException { return playerService.importPlayersFromCsv(header, file); }
+    @PostMapping("/sync") public PlayerSyncResponse synchronizeFromApiFootball(@RequestHeader("Authorization") String header) throws TokenException { return playerService.synchronizeFromApiFootball(header); }
     @DeleteMapping("/{id}") public ResponseEntity<Void> deletePlayer(@RequestHeader("Authorization") String header, @PathVariable Integer id) throws TokenException, NotFoundException { playerService.removePlayer(header, id); return ResponseEntity.noContent().build(); }
     @DeleteMapping("/all") public ResponseEntity<Void> deleteAllPlayers(@RequestHeader("Authorization") String header) throws TokenException { playerService.removeAll(header); return ResponseEntity.noContent().build(); }
     @PutMapping("/{id}/all-info") public PlayerResponse updatePlayerInfo(@RequestHeader("Authorization") String header, @PathVariable Integer id, @Valid @RequestBody ChangeInfoPlayerRequest request) throws TokenException, NotFoundException, DuplicatePlayerException { return playerService.updatePlayerInfo(header, id, request); }

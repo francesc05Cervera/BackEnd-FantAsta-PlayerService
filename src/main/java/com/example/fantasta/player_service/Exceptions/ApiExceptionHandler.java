@@ -24,6 +24,10 @@ public class ApiExceptionHandler {
     ResponseEntity<?> unauthorized(TokenException exception) { return error(HttpStatus.UNAUTHORIZED, exception.getMessage()); }
     @ExceptionHandler(InvalidPlayerRequestException.class)
     ResponseEntity<?> invalidPlayer(InvalidPlayerRequestException exception) { return error(HttpStatus.BAD_REQUEST, exception.getMessage()); }
+    @ExceptionHandler(FootballApiException.class)
+    ResponseEntity<?> footballApi(FootballApiException exception) { return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage()); }
+    @ExceptionHandler(SynchronizationInProgressException.class)
+    ResponseEntity<?> syncInProgress(SynchronizationInProgressException exception) { return error(HttpStatus.CONFLICT, exception.getMessage()); }
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<?> upstream(ResponseStatusException exception) {
         return error(HttpStatus.valueOf(exception.getStatusCode().value()), exception.getReason());

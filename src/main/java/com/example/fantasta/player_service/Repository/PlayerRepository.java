@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PlayerRepository extends JpaRepository<Player, Integer> {
@@ -29,4 +30,9 @@ public interface PlayerRepository extends JpaRepository<Player, Integer> {
     boolean existsNormalized(@Param("name") String name, @Param("surname") String surname,
             @Param("role") String role, @Param("team") String team,
             @Param("excludedId") Integer excludedId);
+
+    Optional<Player> findByExternalPlayerId(Long externalPlayerId);
+
+    @Query("select p from Player p where lower(p.name) = lower(:name) and lower(p.surname) = lower(:surname)")
+    List<Player> findByNormalizedNameAndSurname(@Param("name") String name, @Param("surname") String surname);
 }

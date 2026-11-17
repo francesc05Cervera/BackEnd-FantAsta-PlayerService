@@ -132,6 +132,37 @@ fantasta.auction-service.url=http://localhost:8081
 
 Per l'integrazione reale configura `AUTH_SERVICE_URL` con l'URL pubblico di AuthService e `APP_CORS_ALLOWEDORIGINS` con le origini Angular, per esempio `http://localhost:4200,https://app.example.com`. Le operazioni di creazione, modifica, importazione ed eliminazione richiedono un utente con ruolo `ADMIN`, assegnato solo da `AUTH_ADMINEMAILS` in AuthService. Gli endpoint di lettura richiedono un token Bearer valido.
 
+### Sincronizzazione Serie A con API-Football
+
+La sincronizzazione e' disattivata per impostazione predefinita e non inserisce mai chiavi nel repository. Crea un account su [API-Football](https://dashboard.api-football.com/register), genera una chiave nel dashboard e configura Render o l'ambiente locale:
+
+```bash
+API_FOOTBALL_ENABLED=true
+API_FOOTBALL_KEY=la-tua-chiave
+API_FOOTBALL_LEAGUE_ID=135
+API_FOOTBALL_SEASON=2026
+# opzionali
+API_FOOTBALL_CRON="0 0 3 * * MON"
+API_FOOTBALL_CONNECT_TIMEOUT_MS=3000
+API_FOOTBALL_READ_TIMEOUT_MS=10000
+API_FOOTBALL_MIN_REQUEST_INTERVAL_MS=6500
+```
+
+`API_FOOTBALL_LEAGUE_ID=135` identifica la Serie A. La stagione deve essere verificata nel dashboard/API per il piano associato alla chiave: il piano Free fornisce 100 richieste al giorno, ha un limite di 10 richieste al minuto e puo' limitare le stagioni disponibili. La sincronizzazione settimanale usa `/teams?league=&season=` e poi `/players/squads?team=`: con 20 squadre esegue circa 21 richieste e l'intervallo predefinito di 6,5 secondi resta sotto il limite al minuto.
+
+L'endpoint manuale e':
+
+```text
+POST /api/players/sync
+Authorization: Bearer <JWT ADMIN>
+```
+
+Restituisce `{ "inserted", "updated", "unchanged", "total" }`. Solo `ADMIN` puo' avviarlo; gli utenti `USER` restano in sola lettura. La sincronizzazione usa l'identificativo API-Football come chiave esterna, aggiorna i trasferimenti senza cambiare l'ID FantAsta, non elimina giocatori assenti dalla rosa corrente e non avvia due esecuzioni insieme. Un errore o una risposta incompleta dell'API interrompe la transazione e mantiene i dati esistenti.
+
+I ruoli API sono normalizzati in modo compatibile con AuctionService: `Goalkeeper -> P`, `Defender -> D`, `Midfielder -> C`, `Attacker -> A`. Gli input manuali/CSV accettano anche i nomi italiani precedenti e vengono normalizzati ai quattro codici. Per i record CSV precedenti, l'ID esterno viene collegato soltanto se nome e cognome normalizzati identificano un singolo candidato; una corrispondenza ambigua interrompe la sincronizzazione senza scrivere dati.
+
+La migrazione Flyway `V1__add_api_football_player_id.sql` e' additiva: aggiunge `api_football_player_id` e il relativo indice univoco, lasciando nullo il campo per i dati preesistenti. Non modifica gli ID interni usati da AuctionService e non elimina dati.
+
 ## 🚀 Esecuzione
 
 ### Sviluppo Locale
