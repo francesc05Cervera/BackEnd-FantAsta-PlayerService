@@ -10,6 +10,13 @@ api-football:
   cron: "${API_FOOTBALL_CRON:0 0 3 * * MON}"
 
 spring:
+  datasource:
+    hikari:
+      # Render's shared PostgreSQL/PgBouncer session pool is small. Keep this
+      # service below its connection cap alongside AuthService and AuctionService.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:3}
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
   flyway:
     baseline-on-migrate: true
     baseline-version: 0

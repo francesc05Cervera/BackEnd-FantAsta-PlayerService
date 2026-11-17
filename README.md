@@ -163,6 +163,18 @@ I ruoli API sono normalizzati in modo compatibile con AuctionService: `Goalkeepe
 
 La migrazione Flyway `V1__add_api_football_player_id.sql` e' additiva: aggiunge `api_football_player_id` e il relativo indice univoco, lasciando nullo il campo per i dati preesistenti. Non modifica gli ID interni usati da AuctionService e non elimina dati.
 
+### PostgreSQL condiviso su Render
+
+Se i servizi condividono un PostgreSQL con PgBouncer in `session mode`, configura pool piccoli per non superare il limite di connessioni del piano:
+
+```text
+DB_POOL_MAX_SIZE=3
+DB_POOL_MIN_IDLE=0
+DB_CONNECTION_TIMEOUT_MS=10000
+```
+
+I valori sono gia' i default del servizio; le variabili servono solo per personalizzarli. Ogni microservizio deve avere un budget di connessioni coerente con il limite complessivo del database.
+
 ## 🚀 Esecuzione
 
 ### Sviluppo Locale
